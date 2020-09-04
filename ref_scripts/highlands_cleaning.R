@@ -31,7 +31,7 @@ error_wtns <- c()
 #   })
 
 # The approach in this script is to group all the wells by their wtns, treat the rows in each group as a single mini-dataframe and then apply a
-# function that can extract information from each of group and adding it to a separate table. The first task is thus to write 2 function that can
+# function that can extract information from each of group and adding it to a separate table. The first task is thus to write 2 functions that can
 # extract this information from lithology rows and general remarks respectively. These can then be applied to grouped data across the whole dataset.
 
 # Testing df
@@ -52,13 +52,19 @@ extract_litho_data <- function(df){
       pairs <- getYieldFracPairs(row$lithology)
       fractures <- getFracVals(row$lithology)
       # If fractures or pairs were present, removing them from the string being considered
-      temp <- ifelse(nrow(pairs) > 0, str_remove_all(row$lithology, paste(pairs$string, collapse = "|")), row$lithology)
-      temp <- ifelse(nrow(fractures) > 0, str_remove_all(temp, paste(fractures$string, collapse = "|")), temp)
+      temp <- ifelse(nrow(pairs) > 0, 
+                     str_remove_all(row$lithology, paste(pairs$string, collapse = "|")), 
+                     row$lithology)
+      temp <- ifelse(nrow(fractures) > 0, 
+                     str_remove_all(temp, paste(fractures$string, collapse = "|")), 
+                     temp)
       # Having now removed any strings that were used to identify fractures or yield value pairs, we finally check for yields alone from the remnant string
       yields <- getYieldVals(temp)
       
       # If none of the three sorts of matches are found, simply adding the row to the out_table as-is and moving on
-      if( ((nrow(pairs) == 0) | sum(!is.na(pairs)) == 0) & ((nrow(fractures) == 0) | sum(!is.na(fractures)) == 0) & is.na(yields$yield) ){
+      if( ((nrow(pairs) == 0) | sum(!is.na(pairs)) == 0) & 
+          ((nrow(fractures) == 0) | sum(!is.na(fractures)) == 0) & 
+          is.na(yields$yield) ) {
         print("nothing found")
         row$fracture <- NA_character_
         out_table <- bind_rows(row, out_table)
@@ -72,7 +78,10 @@ extract_litho_data <- function(df){
           # Iterating through all the fractures 
           for(frac in rows(fractures)){
             # If any of the fracture values are found to lie within the depth range associated with this row:
-            if( between(as.numeric(frac$depth), as.numeric(row$depth_from_ft), as.numeric(row$depth_to_ft)) & is.na(row$fracture_from)){
+            if( between(as.numeric(frac$depth), 
+                        as.numeric(row$depth_from_ft), 
+                        as.numeric(row$depth_to_ft)) & 
+                is.na(row$fracture_from)){
               # If the fracture columns are currently empty, edit the row to add the fracture values at the correct place
               row$fracture_from <- frac$depth
               row$fracture_to <- if_else(is.na(frac$depth2), frac$depth, frac$depth2)
@@ -113,23 +122,31 @@ extract_litho_data <- function(df){
           # Iterating through all the pairs discovered
           for(pair in rows(pairs)){
             # If any of the pair values are found to lie within the depth range associated with this row:
-            if( between(as.numeric(pair$depth), as.numeric(row$depth_from_ft), as.numeric(row$depth_to_ft)) & is.na(row$fracture_from)){
-              # If the fracture and yield columns are currently empty, creating a new row and adding the fractures and yields at the correct places
+            if( between(as.numeric(pair$depth), 
+                        as.numeric(row$depth_from_ft), 
+                        as.numeric(row$depth_to_ft)) & 
+                is.na(row$fracture_from)){
+              # If the fracture and yield columns are currently empty, editing the row and adding the
+              # fractures and yields at the correct places
               row$fracture_from <- pair$depth
               row$fracture_to <- if_else(is.na(pair$depth2), pair$depth, pair$depth2)
               row$single_frac_yield <- pair$yield
               row$unit <- pair$yield_unit
               # Adding a comment indiciating that this row contains fracture and yield information
               row$fracture <- "fracture/yield"
-            # If either the fracture columns already contain data or the depth does not fall within the depth range for this row, a new row needs to be
-            # created, with only some, not all, relevant information copied over.
+            # If either the fracture columns already contain data or the depth does not fall within the depth
+            # range for this row, a new row needs to be created, with only some, not all, relevant information
+            # copied over.
             }else{
-              # Checking if the current depth value already exists within some row in the out_table (added perhaps from the previous pass of detecting
-              # fractures), and such a row does not have any associated yield values. In this case, this row in the out_table is simply edited, rather than
+              # Checking if the current depth value already exists within some row in the out_table (added
+              # perhaps from the previous pass of detecting fractures), and such a row does not have any
+              # associated yield values. In this case, this row in the out_table is simply edited, rather than
               # having a new one be created
               if(pair$depth %in% out_table$depth_from_ft){
-                # If the depth value already exists and has no associated yield values, editing this row instead of creating a new one
-                out_table[out_table$depth_from_ft %in% pair$depth, ] <- out_table %>% filter(depth_from_ft %in% pair$depth) %>% 
+                # If the depth value already exists and has no associated yield values, editing this row
+                # instead of creating a new one
+                out_table[out_table$depth_from_ft %in% pair$depth, ] <- out_table %>% 
+                  filter(depth_from_ft %in% pair$depth) %>% 
                   mutate(single_frac_yield = pair$yield) %>% 
                   mutate(unit = pair$yield_unit) %>% 
                   mutate(fracture = "fracture/yield")
@@ -165,9 +182,9 @@ extract_litho_data <- function(df){
         error_wtns <<- append(error_wtns, df$borehole[1])
       })
       
-      # If a value is found, checking to see if values already exist in the row. If not, adding it to the row. If values exist, creating a new row to
-      # store it as a cumulative, rather than a single yield. If multiple values are found, the function returns the word "review" instead of a value
-      # itself.
+      # If a yield value is found, checking to see if values already exist in the row. If not, adding it to
+      # the row. If yield values exist, creating a new row to store it as a cumulative, rather than a single
+      # yield. If multiple values are found, the function returns the word "review" instead of a value itself.
       tryCatch({
         if( !is.na(yields$yield) ){
           print("checking yields")

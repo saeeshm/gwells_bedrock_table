@@ -2,6 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+.DS_Store
 gwells_bedrock_table.Rproj
-ref_scripts/
 data/
+ref_scripts/
