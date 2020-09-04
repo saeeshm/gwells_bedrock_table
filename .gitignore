@@ -3,3 +3,5 @@
 .RData
 .Ruserdata
 gwells_bedrock_table.Rproj
+ref_scripts/
+data/
