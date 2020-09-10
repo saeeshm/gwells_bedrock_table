@@ -152,6 +152,87 @@ getYieldFracPairs <- function(comment){
   }
 }
 
+
+# A function that applies regular expression matching to return a vector of yield values extracted from a given comment
+getYieldVals <- function(comment){
+  # Looking for yield values using the yield-only regex. First looking for the world "yield" and if found
+  # splitting the string on that word to only take the latter half of the comment
+  pattern <- "(yield:?\\s*)?(\\.*(?:\\d\\s{0,1}(?:\\d|\\/|\\-)*)*\\.{0,1}\\d+)+(?:\\s|&|,|-|and|to)*(\\.*(?:\\d\\s{0,1}(?:\\d|\\/|\\-)*)*\\.{0,1}\\d+)*(\\s*gpm|\\s*gph|\\s*gpd|\\s*usgpm|\\s*ukgpm)"
+  
+  # An empty dataframe to store the output of this function
+  output <- tibble(yield = NA_character_, yield2 = NA_character_, unit = NA_character_, .rows = 1)
+  
+  # Using the pattern to extract matches
+  yields <- str_match_all(comment, pattern)[[1]]
+  
+  # If no values are found or the values are all missing, returning an empty dataframe
+  if( (sum(!is.na(yields)) == 0) | (nrow(yields) == 0) ){
+    return(output)
+  # If the second column is filled for any row, it means the word "yield" was detected, and we assume the
+  # value associated with it as the cumulative yield of the row.
+  }else if( sum(!is.na(yields[,2])) > 0 ){
+    # We then loop through to extract this value and return it
+    for(i in seq(nrow(yields))){
+      if(!is.na(yields[i, 2])){ 
+        output$yield <- yields[i, 3]
+        output$yield2 <- yields[i, 4]
+        output$unit <- yields[i, 5]
+        break
+      }
+    }
+    # Returning the output
+    return(output)
+    # If the word "yield" isn't found, then looking at how many measures were actually found. If it is exactly
+    # one, returning it.
+  }else{
+    output$yield <- case_when(nrow(yields) == 1 ~ yields[1, 3], 
+                              nrow(yields) > 1 ~ "review")
+    output$yield2 <- case_when(nrow(yields) == 1 ~ yields[1, 4], 
+                               nrow(yields) > 1 ~ "review")
+    output$unit <- yields[1, 5]
+    return(output)
+  }
+}
+
+# A function that applies regular expression matching to return a tibble of fracture values extracted from a given comment
+getFracVals <- function(comment){
+  # Looking for fracture values using the fracture-only regex. This is the first step of a multi part process
+  pattern <- "([fg]rac\\w*|moisture|(?:pump(?:\\w|\\s)+)?water)(?:[\\w\\s])*(:|at|@|-|\\s|from)*(((\\.*(?:\\d\\s{0,1}(?:\\d|\\/|\\-)*)*\\.{0,1}\\d+)+(\\s|&|,|-|and|to)?(\\.*(?:\\d\\s{0,1}(?:\\d|\\/|\\-)*)*\\.{0,1}\\d+)*)*(ft|feet|gpm|gph|gpd|usgpm|ukgpm)?)+"
+  fracs <- str_extract_all(comment, pattern)[[1]]
+  
+  # If the expression above captures anything, then proceeding with the rest of the steps. Otherwise ignoring
+  # and proceeding to the return statement
+  if ( (sum(!is.na(fracs)) > 0) & (length(fracs) > 0) ){
+    
+    # Removing any captured expressions that contain the word "pump" or related, as this refers to pumping
+    # depth not fracture depth and we don't want that. Creating a temp var to assist with this process
+    temp <- c()
+    for(i in seq(fracs)){
+      # As long as the word pump is not detected, the string is added to the temp table.
+      if(!str_detect(fracs[i], "pu?mp")){
+        temp <- append(temp, fracs[i])
+      }
+    }
+    # Passing the now filtered expressions back into the fracs variable
+    fracs <- temp
+    # Collapsing them into one string separated by spaces
+    fracs <- paste(fracs, collapse = ' ')
+    
+    # Now using second regex to extract the actual numeric values from the character strings extracted. Note
+    # that it ignores any values followed by yield units
+    fractures <- str_match_all(fracs, "((\\.*(?:\\d(?:\\d|\\/)*)*\\.{0,1}\\d+)+)\\s*(?:ft|feet|gpm|gph|gpd|usgpm|ukgpm)?(\\s*(?:-|to)\\s*)*(\\.*(?:\\d(?:\\d|\\/)*)*\\.{0,1}\\d+)*(?:ft|feet|gpm|gph|gpd|usgpm|ukgpm)?")[[1]]
+    # Turning this into a named dataframe
+    fractures <- as_tibble(fractures,.name_repair = "unique")
+    names(fractures) <- c("string", "depth", "to", "depth2")
+    # Removing any strings that capture yield values, like gpm, instead of depth values
+    fractures <- fractures %>% filter(!str_detect(string, "gpm|gph|gpd|usgpm|ukgpm"))
+  }else{
+    # If there are no fractures detected, returning an empty named dataframe using the same structure as the one that would be created above
+    fractures <- tibble(string = character(), depth = character(), to = character(), depth2 = character(), .rows = 0)
+  }
+  return(fractures)
+}
+
 # ------------------------------------------------------------------------------------------------------------
 # Helper Functions
 # ------------------------------------------------------------------------------------------------------------
