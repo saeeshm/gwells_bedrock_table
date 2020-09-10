@@ -73,7 +73,7 @@ getYieldFracPairs <- function(comment){
       names <- c("string", "x2", "x3", "x4","yield", "x6", "yield2", "yield_unit", "x9", "depth", "x11", "depth2", "depth_unit")
       # Turning the output matrix into a named df and setting the values to allow for review before returning
       # it right away
-      pairs <- as_tibble(pairs, .name_repair = "unique")
+      pairs <- suppressMessages(as_tibble(pairs, .name_repair = "unique"))
       names(pairs) <- names
       pairs <- pairs %>% mutate(yield = "review", depth = "0", depth_unit = "ft")
       return(pairs %>% select(string, yield, yield2, yield_unit, depth, depth2, depth_unit))
@@ -81,7 +81,7 @@ getYieldFracPairs <- function(comment){
     
     # If valid units are found, turning the output matrix into a named df to make it easier to work with and
     # giving it the right names
-    pairs <- as_tibble(pairs, .name_repair = "unique")
+    pairs <- suppressMessages(as_tibble(pairs, .name_repair = "unique"))
     names(pairs) <- names
     
     # Replacing all "trace" indicators with a 0.01, which is a numeric unit chosen to to refer a trickle
@@ -145,7 +145,7 @@ getYieldFracPairs <- function(comment){
   }else{
     # If no matches are found, returning an empty dataframe (it is still named with the default naming pattern
     # for consistency)
-    pairs <- as_tibble(pairs, .name_repair = "unique")
+    pairs <- suppressMessages(as_tibble(pairs, .name_repair = "unique"))
     names(pairs) <- c("string", "x2", "x3", "x4","yield", "x6", "yield2", "yield_unit", "x9", "depth", "x11", "depth2", "depth_unit")
     # Returning the empty dataframe selecting only the relevant rows
     return(pairs %>% select(string, yield, yield2, yield_unit, depth, depth2, depth_unit))
@@ -197,7 +197,7 @@ getYieldVals <- function(comment){
 # A function that applies regular expression matching to return a tibble of fracture values extracted from a given comment
 getFracVals <- function(comment){
   # Looking for fracture values using the fracture-only regex. This is the first step of a multi part process
-  pattern <- "([fg]rac\\w*|moisture|(?:pump(?:\\w|\\s)+)?water)(?:[\\w\\s])*(:|at|@|-|\\s|from)*(((\\.*(?:\\d\\s{0,1}(?:\\d|\\/|\\-)*)*\\.{0,1}\\d+)+(\\s|&|,|-|and|to)?(\\.*(?:\\d\\s{0,1}(?:\\d|\\/|\\-)*)*\\.{0,1}\\d+)*)*(ft|feet|gpm|gph|gpd|usgpm|ukgpm)?)+"
+  pattern <- "([fg]rac\\w*|moisture|(?:pump(?:\\w|\\s)+)?water)(?:[\\w\\s])*(:|at|@|-|\\s|from)*(((\\.*(?:\\d\\s{0,1}(?:\\d|\\/|\\-)*)*\\.{0,1}\\d+)+(\\s|&|,|-|and|to)?(\\.*(?:\\d\\s{0,1}(?:\\d|\\/|\\-)*)*\\.{0,1}\\d+)*)*(ft|feet|'|gpm|gph|gpd|usgpm|ukgpm|gal)?)+"
   fracs <- str_extract_all(comment, pattern)[[1]]
   
   # If the expression above captures anything, then proceeding with the rest of the steps. Otherwise ignoring
@@ -220,12 +220,17 @@ getFracVals <- function(comment){
     
     # Now using second regex to extract the actual numeric values from the character strings extracted. Note
     # that it ignores any values followed by yield units
-    fractures <- str_match_all(fracs, "((\\.*(?:\\d(?:\\d|\\/)*)*\\.{0,1}\\d+)+)\\s*(?:ft|feet|gpm|gph|gpd|usgpm|ukgpm)?(\\s*(?:-|to)\\s*)*(\\.*(?:\\d(?:\\d|\\/)*)*\\.{0,1}\\d+)*(?:ft|feet|gpm|gph|gpd|usgpm|ukgpm)?")[[1]]
+    fractures <- str_match_all(fracs, "((?:\\.*(?:\\d(?:\\d|\\/)*)*\\.{0,1}\\d+)+)\\s*(?:ft|feet|'|gpm|gph|gpd|usgpm|ukgpm|gal)?(\\s*(?:-|to)\\s*)*((?:\\.*(?:\\d(?:\\d|\\/)*)*\\.{0,1}\\d+)*)\\s*(?:ft|feet|'|gpm|gph|gpd|usgpm|ukgpm|gal)?")[[1]]
     # Turning this into a named dataframe
-    fractures <- as_tibble(fractures,.name_repair = "unique")
+    fractures <- suppressMessages(as_tibble(fractures,.name_repair = "unique"))
     names(fractures) <- c("string", "depth", "to", "depth2")
-    # Removing any strings that capture yield values, like gpm, instead of depth values
-    fractures <- fractures %>% filter(!str_detect(string, "gpm|gph|gpd|usgpm|ukgpm"))
+    
+    # If the length of the resulting dataframe is not 0, checking the unit associated with any numeric values captured and removing any rows where the
+    # units are yield (instead of depth) related
+    if(nrow(fractures) > 0){
+      fractures <- fractures %>% filter(!str_detect(string, "gpm|gph|gpd|usgpm|ukgpm"))
+    }
+   
   }else{
     # If there are no fractures detected, returning an empty named dataframe using the same structure as the one that would be created above
     fractures <- tibble(string = character(), depth = character(), to = character(), depth2 = character(), .rows = 0)
