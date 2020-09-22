@@ -6,9 +6,8 @@
 
 # ==== Loading libraries ====
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, stringi, lubridate)
-source("regex_parsing_functions.R")
-source("frac-yield_extraction_functions.R")
+pacman::p_load(tidyverse, stringi)
+source("frac_yield_data_extraction.R")
 
 # ------------------------------------------------------------------------------------------------------------
 # Reading data

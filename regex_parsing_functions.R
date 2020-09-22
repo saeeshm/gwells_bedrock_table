@@ -1,12 +1,3 @@
-# Author: Saeesh Mangwani
-# Date: Fri Sep  4 09:37:26 2020
-# Title: Regex Parsing Functions for the GWells Bedrock table
-# Desc: Helper functions to assist with the extraction of fracture, yield and frac-yield pair data from the lithology and general comments associated with wells in the gwells table
-
-# libraries
-library(tidyverse)
-library(stringi)
-
 # A function that applies regular expression matching to return a dataframe of yield-fracture pairs extracted from a given comment
 getYieldFracPairs <- function(comment){
   # Looking for yield-value pairs using the paired regex
