@@ -57,6 +57,9 @@ litho <- litho %>%
   # Next,performing some basic text cleaning operations on the lithology and comment rows: first, turning all text to lower case
   mutate(lithology = tolower(lithology)) %>% 
   mutate(general_remarks = tolower(general_remarks)) %>% 
+  # Removing unneccessary whitespace:
+  mutate(lithology = str_squish(lithology)) %>% 
+  mutate(general_remarks = str_squish(general_remarks)) %>% 
   # Removing plus signs
   mutate(lithology = str_remove_all(lithology, "\\+")) %>% 
   mutate(general_remarks = str_remove_all(general_remarks, "\\+")) %>% 
@@ -85,11 +88,11 @@ litho <- litho %>%
 # ------------------------------------------------------------------------------------------------------------
 
 # Running functions to extract lithology data and organize the dataset
-out_table <- litho %>% 
+out_table1 <- litho %>% 
   group_by(wtn_grp) %>% 
   group_modify(~ extract_litho_data(.x))
 
-out_table <- out_table %>% 
+out_table <- out_table1 %>% 
   group_by(wtn_grp) %>% 
   group_modify(~ extract_comment_data(.x))
 
@@ -101,11 +104,12 @@ review_wtns <- out_table %>%
 
 # Joining these with the wells that have thrown errors and saving these wells in a separate table by taking the data from the original litho table.
 # Effectively, due to errors thrown, these wells were not edited
-error_wtns <- c(error_wtns, review_wtns)
+error_wtns <- unique(c(error_wtns, review_wtns))
 error_table <- litho %>% 
   filter(wtn %in% error_wtns)
 
-df <- litho %>% filter(wtn == 88610) %>% ungroup() %>% mutate_all(as.character)
+df <- litho %>% filter(wtn == 20832) %>% ungroup() %>% mutate_all(as.character)
+df <- df %>% extract_litho_data()
 df$general_remarks[1]
 df$lithology
 df
@@ -113,7 +117,7 @@ df
 df <- df %>% extract_litho_data()
 extract_comment_data(df)
 
-df <- out_table %>% filter(wtn == 88610) %>% ungroup()
+df <- out_table %>% filter(wtn == 82538) %>% ungroup()
 df$general_remarks[1]
 df
 

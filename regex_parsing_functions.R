@@ -10,7 +10,7 @@ library(stringi)
 # A function that applies regular expression matching to return a dataframe of yield-fracture pairs extracted from a given comment
 getYieldFracPairs <- function(comment){
   # Looking for yield-value pairs using the paired regex
-  pattern <- "(((?:frac\\D*(ft|feet)?)|(?:p\\.l\\.?\\s*)|(?:pump(?:ing)?\\D*)|(?:heav(?:ing)?\\D*))?(?:((?:\\d+(?:\\/)?)\\.{0,1}\\d*)\\s?(gpm|gph|gpd|usgpm|ukgpm|ft|feet|')?\\s?(?:to|-|\\s)?\\s?((?:\\d+(?:\\/)?)\\.{0,1}\\d*)?\\s?(gpm|gph|gpd|usgpm|ukgpm|ft|feet|')?)|(?:wb\\s?|w\\.b\\s?|water|trickle|trace|moisture))(\\s*(?:@|-|at|in|\\s*\\()\\s*)+(\\.*(?:\\d+(?:\\/)*)\\.{0,1}\\d*)\\s?(gpm|gph|gpd|usgpm|ukgpm|ft|feet|')?(\\s*(?:to|-|\\s)+\\s*)*(\\.*(?:\\d+(?:\\/)*)*\\.{0,1}\\d*)*(\\s*gpm|\\s*gph|\\s*gpd|\\s*usgpm|\\s*ukgpm|\\s*ft|\\s*feet|\\s*')*"
+  pattern <- "((?:frac\\D*(?:ft|feet)?|p\\.l\\.?\\s*|pump(?:ing)?\\D*|heav(?:ing)?\\D*)?(?:(\\.?\\d+(?:(?:\\/|\\.)\\d+)?)\\s?(gpm|gph|gpd|usgpm|ukgpm|ft|feet|')?\\s?(?:(to|-+)\\s?(\\.?\\d+(?:(?:\\/|\\.)\\d+)?)\\s?(gpm|gph|gpd|usgpm|ukgpm|ft|feet|')?)?)|(?:w\\.?b|water|trickle|trace|moisture))\\s?(@|-+|at|in|\\s*\\()\\s?(\\.?\\d+(?:(?:\\/|\\.)\\d+)?)\\s?(gpm|gph|gpd|usgpm|ukgpm|ft|feet|')?\\s?(?:(to|-+)\\s?(\\.?\\d+(?:(?:\\/|\\.)\\d+)?)\\s?(gpm|gph|gpd|usgpm|ukgpm|ft|feet|')?)?"
   pairs <- str_match_all(comment, pattern)[[1]]
   
   # If pairs are detected and are not all missing, checking to see the order in which yield depth values are
@@ -28,19 +28,19 @@ getYieldFracPairs <- function(comment){
         next
       # if the unit columns are not empty and are exactly the same for both columns (that is both are depth or both are yield units), this isn't a
       # paired value so it needs to be dropped
-      }else if(!is.na(pairs[i,6]) & !is.na(pairs[i,11]) &
-                (str_detect(pairs[i,6],"gpm|gph|gpd|ukgpm|usgpm") & str_detect(pairs[i,11],"gpm|gph|gpd|ukgpm|usgpm") | 
-                 str_detect(pairs[i,6],"ft|feet|'") & str_detect(pairs[i,11],"ft|feet|'")) ){
+      }else if(!is.na(pairs[i,4]) & !is.na(pairs[i,10]) &
+                (str_detect(pairs[i,4],"gpm|gph|gpd|ukgpm|usgpm") & str_detect(pairs[i,10],"gpm|gph|gpd|ukgpm|usgpm") | 
+                 str_detect(pairs[i,4],"ft|feet|'") & str_detect(pairs[i,10],"ft|feet|'")) ){
         next
       # The same check but for the second unit columns
-      }else if(!is.na(pairs[i,8]) & !is.na(pairs[i,14]) &
-               (str_detect(pairs[i,8],"gpm|gph|gpd|ukgpm|usgpm") & str_detect(pairs[i,14],"gpm|gph|gpd|ukgpm|usgpm") | 
-                str_detect(pairs[i,8],"ft|feet|'") & str_detect(pairs[i,14],"ft|feet|'")) ){
+      }else if(!is.na(pairs[i,7]) & !is.na(pairs[i,13]) &
+               (str_detect(pairs[i,7],"gpm|gph|gpd|ukgpm|usgpm") & str_detect(pairs[i,13],"gpm|gph|gpd|ukgpm|usgpm") | 
+                str_detect(pairs[i,7],"ft|feet|'") & str_detect(pairs[i,13],"ft|feet|'")) ){
         next
       # If there is a single predominant way of specifying the "at" part of the pair (i.e most pairs are formatted in a certain style of x gpm "at" y
       # ft), and there is a row that does not meet this pattern AND does not contain both units, removing it from the pairs being considered as we're
       # not certain enough that it is a frac-yield pair. See the helper function specification below for how this function completes this comparison.
-      }else if(is_common_connector(i, pairs) & (all(is.na(pairs[i,c(6,8)])) | all(is.na(pairs[i,c(11,14)]))) ){
+      }else if(is_common_connector(i, pairs) & (all(is.na(pairs[i,c(4,7)])) | all(is.na(pairs[i,c(10,13)]))) ){
         next
       # If the phrase "frac" or related phrases are found in a match, or there is only 1 pair that's
       # been found
@@ -48,10 +48,10 @@ getYieldFracPairs <- function(comment){
         # Checking whether the units associated with the values are not the same, and are both present. That
         # is, either there must be a depth-yield or a yield-depth unit pair. In the absence of these, we don't
         # have enough confidence to know whether this is a pair or just a range, so we must skip it
-        first_test <- (any(stri_detect(pairs[i, c(6,8)], regex="ft|feet|'")) & 
-                         any(stri_detect(pairs[i, c(11,14)], regex="gpm|gph|gpd|ukgpm|usgpm")))
-        sec_test <- (any(stri_detect(pairs[i, c(6,8)], regex="gpm|gph|gpd|ukgpm|usgpm")) & 
-                       any(stri_detect(pairs[i, c(11,14)], regex="ft|feet|'")))
+        first_test <- (any(stri_detect(pairs[i, c(4,7)], regex="ft|feet|'")) & 
+                         any(stri_detect(pairs[i, c(10,13)], regex="gpm|gph|gpd|ukgpm|usgpm")))
+        sec_test <- (any(stri_detect(pairs[i, c(4,7)], regex="gpm|gph|gpd|ukgpm|usgpm")) & 
+                       any(stri_detect(pairs[i, c(10,13)], regex="ft|feet|'")))
         
         # Checking if any of the above conditions have been met (i.e, that the found pair is either yield-frac
         # or frac-yield). The condition check is broken into 2 steps to correct for the strange behaviour in R
@@ -70,28 +70,28 @@ getYieldFracPairs <- function(comment){
     
     # Next, finding the appropriate units for each of these pairs. If the latter column contains depth units AND the former contains yield units,
     # naming the columns as such by creating a vector of names to add to the table
-    if((sum(str_detect(pairs[,c(6,8)], "gpm|gph|gpd|ukgpm|usgpm"), na.rm = T) > 0 & 
-        sum(str_detect(pairs[,c(11,14)], "ft|feet|'"), na.rm = T) > 0) ){
-      yield <- list("num" = 5, "unit" = 6)
-      depth <- list("num" = 10, "unit" = 11)
-      names <- c("string", "match_col", "x3", "x4","yield", "yield_unit1","yield2", "yield_unit2", "x9", "depth", "depth_unit1", "x12", "depth2", "depth_unit2")
+    if((sum(str_detect(pairs[,c(4,7)], "gpm|gph|gpd|ukgpm|usgpm"), na.rm = T) > 0 & 
+        sum(str_detect(pairs[,c(10,13)], "ft|feet|'"), na.rm = T) > 0) ){
+      # yield <- list("num" = 3, "unit" = 4)
+      # depth <- list("num" = 9, "unit" = 10)
+      names <- c("string", "match_col", "yield", "yield_unit1","x5", "yield2", "yield_unit2", "at", "depth", "depth_unit1", "x11", "depth2", "depth_unit2")
     # If either the latter column contains yield units AND the former depth units, assigning them as such
-    }else if( (sum(str_detect(pairs[,c(11,14)], "gpm|gph|gpd|ukgpm|usgpm"), na.rm = T) > 0) & 
-              (sum(str_detect(pairs[,c(6,8)], "ft|feet|'"), na.rm = T) > 0) ){
-      yield <- list("num" = 10, "unit" = 11)
-      depth <- list("num" = 5, "unit" = 6)
-      names <- c("string", "match_col", "x3", "x4","depth", "depth_unit1", "depth2", "depth_unit2", "x9", "yield", "yield_unit1",  "x12", "yield2", "yield_unit2")
+    }else if( (sum(str_detect(pairs[,c(10,13)], "gpm|gph|gpd|ukgpm|usgpm"), na.rm = T) > 0) &
+              (sum(str_detect(pairs[,c(4,7)], "ft|feet|'"), na.rm = T) > 0) ){
+      # yield <- list("num" = 9, "unit" = 10)
+      # depth <- list("num" = 3, "unit" = 4)
+      names <- c("string", "match_col","depth", "depth_unit1", "x5", "depth2", "depth_unit2", "at", "yield", "yield_unit1",  "x11", "yield2", "yield_unit2")
     # If none of the units are found, we do not know what the pattern of information is and so the pairs are flagged for review and the table is returned right away.
     }else{ 
-      yield <- list("num" = 2, "unit" = 5)
-      depth <- list("num" = 10, "unit" = 11)
-      names <- c("string", "match_col", "x3", "x4","yield", "yield_unit1", "yield2", "yield_unit2", "x9", "depth", "depth_unit1", "x12", "depth2", "depth_unit2")
+      # yield <- list("num" = 2, "unit" = 4)
+      # depth <- list("num" = 9, "unit" = 10)
+      names <- c("string", "match_col", "yield", "yield_unit1","x5", "yield2", "yield_unit2", "at", "depth", "depth_unit1", "x11", "depth2", "depth_unit2")
       # Turning the output matrix into a named df and setting the values to allow for review before returning
       # it right away
       pairs <- suppressMessages(as_tibble(pairs, .name_repair = "unique"))
       names(pairs) <- names
       pairs <- pairs %>% mutate(yield = "review", depth = "review", depth_unit1 = "ft")
-      return(pairs %>% select(string, match_col, yield, yield_unit1, yield2, yield_unit2, depth, depth_unit1, depth2, depth_unit2) %>% distinct())
+      return(pairs %>% select(string, match_col, yield, yield_unit1, yield2, yield_unit2, at, depth, depth_unit1, depth2, depth_unit2) %>% distinct())
     }
     
     # If valid units are found, turning the output matrix into a named df to make it easier to work with and
@@ -170,19 +170,6 @@ getYieldFracPairs <- function(comment){
         row$yield_unit2 <- row$depth_unit2
         row$depth_unit1 <- temp
         row$depth_unit2 <- temp2
-        
-        # # If the depth unit for this row is NA or is feet, it needs to be inverted, so selecting the valid unit using the helper function
-        # row$yield_unit1 <- case_when(is.na(row$depth_unit1) | str_detect(row$depth_unit1, "ft|feet|'") ~ select_unit(pairs$yield_unit1),
-        #                             # Otherwise, using the value stored in the depth unit column, as it is a
-        #                             # valid inversion
-        #                             TRUE ~ row$depth_unit1)
-        # row$yield_unit2 <- case_when(is.na(row$depth_unit2) | str_detect(row$depth_unit1, "ft|feet|'") ~ select_unit(pairs$yield_unit1),
-        #                              # Otherwise, using the value stored in the depth unit column, as it is a
-        #                              # valid inversion
-        #                              TRUE ~ row$depth_unit1)
-        # # Applying the same logic for reassigning the rest of the units
-        # row$depth_unit1 <- case_when(is.na(temp) | str_detect(temp, "gpm|gph|gpd|ukgpm|usgpm") ~ select_unit(pairs$depth_unit1),
-        #                             TRUE ~ temp)
       }
       
       # If any units are missing or are in the wrong column, replacing them with the appropriate defaults ones
@@ -204,7 +191,7 @@ getYieldFracPairs <- function(comment){
         TRUE ~ row$depth_unit1
       )
       
-      row$depth_unit2 <- case_when (
+      row$depth_unit2 <- case_when(
         is.na(row$depth_unit2) ~ select_unit(pairs$depth_unit2, T),
         str_detect(row$depth_unit2, "ft|feet|'") ~ select_unit(pairs$depth_unit2, T),
         TRUE ~ row$depth_unit2
@@ -235,13 +222,12 @@ getYieldFracPairs <- function(comment){
     # If no matches are found, returning an empty dataframe (it is still named with the default naming pattern
     # for consistency)
     pairs <- suppressMessages(as_tibble(pairs, .name_repair = "unique"))
-    names(pairs) <- c("string", "match_col", "x3", "x4","yield", "yield_unit1", "yield2", "yield_unit2", "x9", "depth", "depth_unit1", "x12", "depth2", "depth_unit2")
+    names(pairs) <- c("string", "match_col","yield", "yield_unit1", "x5","yield2", "yield_unit2", "at", "depth", "depth_unit1", "x11", "depth2", "depth_unit2")
     # Returning the empty dataframe selecting only the relevant rows
     return(pairs %>% select(string, yield, yield_unit1, yield2, yield_unit2, depth, depth_unit1, depth2, depth_unit2) %>% 
              distinct())
   }
 }
-
 
 # A function that applies regular expression matching to return a vector of yield values extracted from a given comment
 getYieldVals <- function(comment){
@@ -373,7 +359,6 @@ select_unit <- function(unit_vector, depth = F){
   return(output)
 }
 
-
 # Function that takes a dataframe and completes its cumulative and single yield columns
 fill_yield_vals <- function(df){
   # Arranging the dataframe in the right order and turning the yield columns to numeric
@@ -439,7 +424,7 @@ find_depth_range <- function(depth, df){
 # the present row is the same as the most common. It returns a boolean value
 is_common_connector <- function(i, pairs){
   # If there is no single type of connector that is predominant, returning FALSE as then this test is meaningless
-  if(all(table(str_squish(pairs[,9])) == 1)){
+  if(all(table(str_squish(pairs[,8])) == 1)){
     return(FALSE)
   }else{
     # Otherwise, checking to see if the connector at the current row is not equal to the most common connector. If it is the same, returning F as we

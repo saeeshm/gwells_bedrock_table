@@ -9,7 +9,7 @@ pacman::p_load(tidyverse)
 source("regex_parsing_functions.R")
 
 # Creating a global variable named error_wtns that stores the tag numbers for wells that throw an error in the classification process
-error_wtns <- c()
+error_wells <- as_tibble(list("wtn" = NA_character_, "error_comment" = NA_character_))
 
 # A function that takes a dataframe, goes through all of its lithology comments and adds values and rows using data extraction functions where
 # applicable
@@ -18,11 +18,30 @@ extract_litho_data <- function(df){
   print(df$wtn[1])
   # Creating an empty out_table to store the resulting data
   out_table <- df[0,] %>% mutate_all(as.character)
+  
   # Iterating through all the rows in the passed dataframe
   for(row in rows(df)){
-    #checking for frac-yield pairs and fractures from the lithology comment
-    pairs <- getYieldFracPairs(row$lithology)
-    fractures <- getFracVals(row$lithology)
+    
+    #checking for frac-yield pairs
+    tryCatch({
+      pairs <- getYieldFracPairs(row$lithology)
+    },error = function(e){
+      message <- paste("Error in extracting fracture-yield pairs for well", row$wtn, "from the lithology comment for row index", row$record_index)
+      print(message)
+      error_row <- list("wtn" = row$wtn[1], "error_comment" = message)
+      error_wells <<- bind_rows(error_wells, error_row)
+    })
+    
+    # For fractures
+    tryCatch({
+      fractures <- getFracVals(row$lithology)
+    },error = function(e){
+      message <- paste("Error in extracting fracture information for well", row$wtn, "from the lithology comment for row index", row$record_index)
+      print(message)
+      error_row <- list("wtn" = row$wtn[1], "error_comment" = message)
+      error_wells <<- bind_rows(error_wells, error_row)
+    })
+    
     # If fractures or pairs were present, removing them from the string being considered
     temp <- ifelse(nrow(pairs) > 0, 
                    str_remove_all(row$lithology, str_replace_all(paste(pairs$string, collapse = "|"), "\\(", "\\\\(")), 
@@ -31,7 +50,14 @@ extract_litho_data <- function(df){
                    str_remove_all(temp, str_replace_all(paste(fractures$string, collapse = "|"), "\\(", "\\\\(")), 
                    temp)
     # Having now removed any strings that were used to identify fractures or yield value pairs, we finally check for yields alone from the remnant string
-    yields <- getYieldVals(temp)
+    tryCatch({
+      yields <- getYieldVals(temp)
+    },error = function(e){
+      message <- paste("Error in extracting yield information for well", row$wtn, "from the lithology comment for row index", row$record_index)
+      print(message)
+      error_row <- list("wtn" = row$wtn[1], "error_comment" = message)
+      error_wells <<- bind_rows(error_wells, error_row)
+    })
     
     # If none of the three sorts of matches are found, simply adding the row to the out_table as-is and moving on
     if( ((nrow(pairs) == 0) | sum(!is.na(pairs)) == 0) & 
@@ -95,7 +121,8 @@ extract_litho_data <- function(df){
     },
     error = function(e){
       print(paste("Error in processing row while looking for fractures", df$wtn[1]))
-      error_wtns <<- append(error_wtns, df$wtn[1])
+      error_row <- list("wtn" = df$wtn[1], "error_comment" = "Error in processing row while looking for fractures")
+      error_wells <<- bind_rows(error_wells, error_row)
     })
     
     
@@ -177,7 +204,8 @@ extract_litho_data <- function(df){
     },
     error = function(e){
       print(paste("Error in processing row while looking for pairs", df$wtn[1]))
-      error_wtns <<- append(error_wtns, df$wtn[1])
+      error_row <- list("wtn" = df$wtn[1], "error_comment" = "Error in processing row while looking for pairs")
+      error_wells <<- bind_rows(error_wells, error_row)
     })
     
     # If a yield value is found, checking to see if values already exist in the row. If not, adding it to
@@ -210,8 +238,10 @@ extract_litho_data <- function(df){
     },
     error = function(e){
       print(paste("Error in processing row while looking for yields", df$wtn[1]))
-      error_wtns <<- append(error_wtns, df$wtn[1])
+      error_row <- list("wtn" = df$wtn[1], "error_comment" = "Error in processing row while looking for yields")
+      error_wells <<- bind_rows(error_wells, error_row)
     })
+    
     # Appending the original row from this iteration to the out_table, whether or not it has been edited
     row <- map(row, as.character)
     out_table <- bind_rows(row, out_table)
@@ -227,14 +257,39 @@ extract_comment_data <- function(df){
   df <- df %>% mutate_all(as.character)
   # Since there is only comment associated with all the rows, extracting it first and treating it separately
   comment <- df$general_remarks[1]
-  # Getting any pair, fracture or yield information stored in the comment
-  pairs <- getYieldFracPairs(comment)
-  fractures <- getFracVals(comment)
+  
+  # Getting pair information
+  tryCatch({
+    pairs <- getYieldFracPairs(comment)
+  },error = function(e){
+    message <- paste("Error in extracting fracture-yield pairs from well", df$wtn[1], "in general remarks")
+    print(message)
+    error_row <- list("wtn" = row$wtn[1], "error_comment" = message)
+    error_wells <<- bind_rows(error_wells, error_row)
+  })
+  
+  # Getting fracture information
+  tryCatch({
+    fractures <- getFracVals(comment)
+  },error = function(e){
+    message <- paste("Error in extracting fracture information from well", df$wtn[1], "in general remarks")
+    print(message)
+    error_row <- list("wtn" = row$wtn[1], "error_comment" = message)
+    error_wells <<- bind_rows(error_wells, error_row)
+  })
+  
   # If fractures or pairs were present, removing them from the string being considered
   temp <- ifelse(nrow(pairs) > 0, str_remove_all(comment, paste(pairs$string, collapse = "|")), comment)
   temp <- ifelse(nrow(fractures) > 0, str_remove_all(temp, paste(fractures$string, collapse = "|")), temp)
   # Having now removed any strings that were used to identify fractures or yield value pairs, we finally check for yields alone from the remnant string
-  yields <- getYieldVals(temp)
+  tryCatch({
+    yields <- getYieldVals(temp)
+  },error = function(e){
+    message <- paste("Error in extracting yield information from well", df$wtn[1], "in general remarks")
+    print(message)
+    error_row <- list("wtn" = row$wtn[1], "error_comment" = message)
+    error_wells <<- bind_rows(error_wells, error_row)
+  })
   
   # If nothing is detected, returning the table as-is
   if( ((nrow(pairs) == 0) | sum(!is.na(pairs)) == 0) & ((nrow(fractures) == 0) | sum(!is.na(fractures)) == 0) & is.na(yields$yield) ){
@@ -252,7 +307,7 @@ extract_comment_data <- function(df){
         # for this range, editing this row by adding the fracture values
         if(nrow(find_depth_range(frac$depth, df)) > 0){
           df[df$depth_from %in% find_depth_range(frac$depth, df)$depth_from, ]$fracture_from <- frac$depth
-          df[df$depth_from %in% find_depth_range(frac$depth, df)$depth_from, ]$fracture_tp <- if_else(is.na(frac$depth2), frac$depth, frac$depth2)
+          df[df$depth_from %in% find_depth_range(frac$depth, df)$depth_from, ]$fracture_to <- if_else(is.na(frac$depth2), frac$depth, frac$depth2)
           df[df$depth_from %in% find_depth_range(frac$depth, df)$depth_from, ]$fracture_type <- "fracture"
         # If either the fractures found are not within any of the existing ranges, or fracture values that do exist are not the same as those that we
         # are adding, creating a new row to store these data
@@ -280,8 +335,9 @@ extract_comment_data <- function(df){
     }
   },
   warning = function(w){
-    print(paste("Error in processing row while looking for yields", df$wtn[1]))
-    error_wtns <<- append(error_wtns, df$wtn[1])
+    print(paste("Error in processing row while looking for fractures", df$wtn[1]))
+    error_row <- list("wtn" = df$wtn[1], "error_comment" = "Error in processing row while looking for fractures")
+    error_wells <<- bind_rows(error_wells, error_row)
   })
   
   # If pairs are detected
@@ -290,36 +346,17 @@ extract_comment_data <- function(df){
       print("checking pairs")
       # iterating through the pairs
       for(pair in rows(pairs)){
-        # First identifying which depth range the pair exists in. If there is such a row where both the from and to depths match exactly with those from
-        # the pair we're adding, using those as the index. If not, then comparing the available ranges to see where the pair might fall
-        index_test <- (as.numeric(pair$depth) == as.numeric(df$depth_from) & as.numeric(pair$depth) == as.numeric(df$depth_to))
-        row_index <- if_else(sum(index_test) > 0, 
-                             list(index_test), 
-                             list(as.numeric(pair$depth) >= as.numeric(df$depth_from) & as.numeric(pair$depth) <= as.numeric(df$depth_to)))
-        row_index <- unlist(row_index)
         # If the found pairs lie within any of the existing lithology ranges and the associated fracture column for this row is empty
         if( nrow(find_depth_range(pair$depth, df)) > 0 ){
           # If the fracture_from is missing, replacing it with the value from the current pair. If it is the same as the current value, leaving it as
           # is. If there already exists a value, leaving it as-is.
-          df[row_index,]$fracture_from <- case_when(is.na(df[row_index,]$fracture_from) ~ pair$depth,
-                                                    df[row_index,]$fracture_from == pair$depth ~ df[row_index,]$fracture_from,
-                                                    TRUE ~ df[row_index,]$fracture_from)
+          df[df$depth_from %in% find_depth_range(pair$depth, df)$depth_from, ]$fracture_from <- pair$depth
+          df[df$depth_from %in% find_depth_range(pair$depth, df)$depth_from, ]$fracture_to <- if_else(is.na(pair$depth2), pair$depth, pair$depth2)
           # Creating a temporary variable for the fracture_to value
-          temp_depth2 <- if_else(is.na(pair$depth2), pair$depth, pair$depth2)
-          temp_yield2 <- if_else(is.na(pair$yield2), pair$yield, pair$yield2)
-          df[row_index,]$fracture_to <- case_when(is.na(df[row_index,]$fracture_to) ~ temp_depth2,
-                                                  df[row_index,]$fracture_to == temp_depth2 ~ df[row_index,]$fracture_to,
-                                                  TRUE ~ df[row_index,]$fracture_to)
-          df[row_index,]$single_frac_yield <- case_when(is.na(df[row_index,]$single_frac_yield) ~ pair$yield,
-                                                        df[row_index,]$single_frac_yield == pair$yield ~ df[row_index,]$single_frac_yield,
-                                                        TRUE ~ df[row_index,]$single_frac_yield)
-          df[row_index,]$single_frac_yield2 <- case_when(is.na(df[row_index,]$single_frac_yield2) ~ temp_yield2,
-                                                        df[row_index,]$single_frac_yield2 == temp_yield2 ~ df[row_index,]$single_frac_yield2,
-                                                        TRUE ~ df[row_index,]$single_frac_yield2)
-          df[row_index,]$unit <- case_when(is.na(df[row_index,]$unit) ~ pair$yield_unit1,
-                                           df[row_index,]$unit == pair$yield_unit1 ~ df[row_index,]$unit ,
-                                           TRUE ~ df[row_index,]$unit)
-          df[row_index,]$fracture_type <- "fracture/yield"
+          df[df$depth_from %in% find_depth_range(pair$depth, df)$depth_from, ]$single_frac_yield <- pair$yield
+          df[df$depth_from %in% find_depth_range(pair$depth, df)$depth_from, ]$single_frac_yield2 <- if_else(is.na(pair$yield2), pair$yield, pair$yield2)
+          df[df$depth_from %in% find_depth_range(pair$depth, df)$depth_from, ]$unit <- pair$yield_unit1
+          df[df$depth_from %in% find_depth_range(pair$depth, df)$depth_from, ]$fracture_type <- "fracture/yield"
           # If either the pairs found are not within any of the existing ranges, or fracture-yield values exist already for the present range, creating a
           # new row and adding it to the dataframe
         }else{
@@ -347,7 +384,8 @@ extract_comment_data <- function(df){
   },
   warning = function(w){
     print(paste("Error in processing row while looking for pairs", df$wtn[1]))
-    error_wtns <<- append(error_wtns, df$wtn[1])
+    error_row <- list("wtn" = df$wtn[1], "error_comment" = "Error in processing row while looking for pairs")
+    error_wells <<- bind_rows(error_wells, error_row)
   })
   
   # If yields are detected
@@ -367,7 +405,8 @@ extract_comment_data <- function(df){
   },
   warning = function(w){
     print(paste("Error in processing row while looking for yields", df$wtn[1]))
-    error_wtns <<- append(error_wtns, df$wtn[1])
+    error_row <- list("wtn" = df$wtn[1], "error_comment" = "Error in processing row while looking for yields")
+    error_wells <<- bind_rows(error_wells, error_row)
   })
   
   # Return the manipulated table
