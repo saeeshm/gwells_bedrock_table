@@ -14,7 +14,7 @@ source("regex_parsing_functions.R")
 # ==== Initializing Global Variables ====
 
 # Creating a global variable named error_wtns that stores the tag numbers for wells that throw an error in the classification process
-error_wells <- as_tibble(list("wtn" = NA_character_, "error_comment" = NA_character_))
+error_wells <- as_tibble(list("wtn" = character(), "error_comment" = character()))
 
 
 # ==== Data Extraction and Table Organization Function (Highest Level) ====
