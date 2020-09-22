@@ -6,7 +6,7 @@
 
 # ==== Loading libraries ====
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(tidyverse, tm, stringi)
+pacman::p_load(tidyverse, stringi, lubridate)
 source("regex_parsing_functions.R")
 source("frac-yield_extraction_functions.R")
 
@@ -51,22 +51,32 @@ litho <- litho %>%
     .x$general_remarks <- comment
     return(.x)
   }) %>% 
-  # Performing some basic text cleaning operations on the lithology and comment rows: first, turning all text to lower case
+  # Making copies of the lithology and comment rows so that we can manipulate the original rows in ways that are more favourable to text cleaning
+  mutate(lithology_copy = lithology) %>% 
+  mutate(general_remarks_copy = general_remarks) %>% 
+  # Next,performing some basic text cleaning operations on the lithology and comment rows: first, turning all text to lower case
   mutate(lithology = tolower(lithology)) %>% 
   mutate(general_remarks = tolower(general_remarks)) %>% 
   # Removing plus signs
   mutate(lithology = str_remove_all(lithology, "\\+")) %>% 
   mutate(general_remarks = str_remove_all(general_remarks, "\\+")) %>% 
   # Transforming all gal.pm signs to gpm
-  mutate(lithology = str_replace_all(lithology, "gal.PM", "gpm")) %>% 
-  mutate(general_remarks = str_replace_all(general_remarks, "gal.PM", "gpm")) %>% 
-  # Removing punctuation
+  mutate(lithology = str_replace_all(lithology, "gal.PM|gal/min", "gpm")) %>% 
+  mutate(general_remarks = str_replace_all(general_remarks, "gal.PM|gal/min", "gpm")) %>% 
+  # Transforming all missing lithology and general remark values to empty strings to prevent code breakage
+  mutate(lithology = ifelse(is.na(lithology), "", lithology)) %>% 
+  mutate(general_remarks = ifelse(is.na(general_remarks), "", general_remarks)) %>% 
+  # Removing all slashed dates as these confuse the regex parser. These will then be added back when the orginal lithology comments are copied back
+  # over
+  mutate(lithology = str_remove_all(lithology, "((?:\\d{1,4})\\/)?(\\d{1,2}|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\/(\\d{2,4})")) %>% 
+  mutate(general_remarks = str_remove_all(general_remarks, "(?:(?:\\d{1,4})\\/)?(?:\\d{1,2}|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\/(?:\\d{2,4})")) %>% 
   
   # Adding columns for storing fracture and yield information
   mutate(fracture_from = NA_character_) %>% 
   mutate(fracture_to = NA_character_) %>% 
   mutate(fracture_type = NA_character_) %>% 
   mutate(single_frac_yield = NA_character_) %>% 
+  mutate(single_frac_yield2 = NA_character_) %>% 
   mutate(cum_frac_yield = NA_character_) %>% 
   mutate(unit = NA_character_)
 
@@ -77,7 +87,10 @@ litho <- litho %>%
 # Running functions to extract lithology data and organize the dataset
 out_table <- litho %>% 
   group_by(wtn_grp) %>% 
-  group_modify(~ extract_litho_data(.x)) %>% 
+  group_modify(~ extract_litho_data(.x))
+
+out_table <- out_table %>% 
+  group_by(wtn_grp) %>% 
   group_modify(~ extract_comment_data(.x))
 
 # Filter out the wells that have had issues and need review
@@ -92,15 +105,26 @@ error_wtns <- c(error_wtns, review_wtns)
 error_table <- litho %>% 
   filter(wtn %in% error_wtns)
 
-df <- litho %>% filter(wtn == 18074) %>% ungroup()
+df <- litho %>% filter(wtn == 88610) %>% ungroup() %>% mutate_all(as.character)
+df$general_remarks[1]
+df$lithology
 df
 
+df <- df %>% extract_litho_data()
+extract_comment_data(df)
+
+df <- out_table %>% filter(wtn == 88610) %>% ungroup()
+df$general_remarks[1]
+df
+
+out_table <- extract_litho_data(df[1:7,])
+
+row <- rows(df)[[7]]
+comment <- row$lithology
 
 # ------------------------------------------------------------------------------------------------------------
 # Frac-yield extraction
 # ------------------------------------------------------------------------------------------------------------
 
-
-
-
+str_squish(pairs[i,9]) != max(str_squish(pairs[,9]))
 
